@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import SlaveMachine, Storage
+import math, random
 
 ##### Setup
 numberOfSlaves = 50
@@ -8,35 +9,42 @@ S3 = None
 currentStep = 0
 
 # 10,080 minutes in a week
-stepToStartTraffic = 10080
+stepToStartTraffic = 10080 # 1 week
 
 # 100,000 is ok; 1,000,000 takes some time
 # 43,800 minutes in a month
-# stepsInSim = 43800
-# stepsInSim = 87600
-stepsInSim = 131400
+# stepsInSim = 43800 # 1 Month
+# stepsInSim = 87600 # 2 Month
+# stepsInSim = 131400 # 3 Month
 
+stepsInSim = 15000
 
 def main():
+    global traffic
+    global currentStep
+    currentStep = 0
     initSlaves()
+
+
 
 
     ##### Select traffic pattern
     traffic = traConstantDemand
+    # traffic = traRandomDemand
 
     ##### Select algorthm
-    algorithm = algConstBuild
+    # algorithm = algConstBuild
+    algorithm = algAdaptiveConstBuild
 
     ##### Select setup
-    # setup = initFirefox
-    setup = initFirefoxMixed
+    setup = initFirefox
+    # setup = initFirefoxMixed
+
+
 
 
     ##### START
     setup()
-
-    global currentStep
-    currentStep = 0
 
     #RUN ALGORITHM FIRST
     algorithm()
@@ -46,7 +54,7 @@ def main():
         #NEXT MINUTE
         step()
         #RUN TRAFFIC
-        S3.takeCopies(getTraffic(traffic, currentStep))
+        S3.takeCopies(getTraffic(currentStep))
         #RUN ALGORITHM
         algorithm()
 
@@ -69,10 +77,36 @@ def algConstBuild():
             Slaves[i].startRun()
 
 
+def algAdaptiveConstBuild():
+    global Slaves
+    waitForTraffic = 1
+    if currentStep <= stepToStartTraffic + waitForTraffic:
+        for i in range(numberOfSlaves):
+            if Slaves[i].isDone():
+                Slaves[i].startRun()
+    else:
+        # calculate average demand
+        avgRange = 30
+        sumTotal = 0
+        for j in range(currentStep - avgRange, currentStep):
+            sumTotal += getTraffic(j)
+        average = int(math.ceil(float(sumTotal)/float(avgRange)))
+
+        # plan to build 10%? over the expected demand
+
+        # assign machines
+        for i in range(numberOfSlaves):
+            if Slaves[i].isDone():
+                Slaves[i].startRun()
+
 ##### Traffics
 
 def traConstantDemand(step):
     demand = 1
+    return demand #dl/min
+
+def traRandomDemand(step):
+    demand = random.randint(0,10)
     return demand #dl/min
 
 
@@ -94,6 +128,8 @@ def initFirefoxMixed():
     for i in range(numberOfSlaves/2, numberOfSlaves):
         setFirefox_C_XL_OD(Slaves[i])
 
+
+#TODO make these into objects to be able to reference their data
 C_XL_OD = 'C1.XLarge On-Demand'
 def setFirefox_C_XL_OD(Slave):
     stepsToComplete = 25 # minutes
@@ -101,6 +137,7 @@ def setFirefox_C_XL_OD(Slave):
     computeCost = 0.01 # $/min C1.XL
     return Slave.setMachine(C_XL_OD, stepsToComplete, stepsToCompleteCached, computeCost)
 
+#TODO make these into objects to be able to reference their data
 C_Med_OD = 'C1.Medium On-Demand'
 def setFirefox_C_Med_OD(Slave):
     stepsToComplete = 63 # minutes
@@ -117,7 +154,7 @@ def initSlaves():
     for i in range(numberOfSlaves):
         slave = SlaveMachine.SlaveMachine()
         Slaves.append(slave)
-def getTraffic(traffic, step):
+def getTraffic(step):
     if (step > stepToStartTraffic):
         return traffic(step - stepToStartTraffic)
     return 0

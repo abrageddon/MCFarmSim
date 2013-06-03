@@ -10,27 +10,28 @@ class SlaveMachine:
     isCached = False
 
     timeRemaining = -1
-    costPerStep = 0.1
+    costPerStep = 0
 
     totalCost = 0
 
     def __init__(self):
         pass
-    def setMachine(self, label, job, cached, cost=0):
+    def setMachine(self, label, job, cached, cost):
+        # kill current run
+        self.timeRemaining = -1
+        self.isCached = False
+        # load new settings
         self.label = label
         self.jobLength = job
         self.cachedLength = cached
-        self.isCached = False
-        if cost != 0:
-            self.costPerStep = cost
+        self.costPerStep = cost
     def startRun(self):
         if self.timeRemaining <= 0 and self.jobLength > 0 and self.cachedLength > 0:
             if self.isCached:
-                #TODO +/- 5% or so?
-                self.timeRemaining = self.jobLength + variance(self.jobLength)
-            else:
-                #TODO +/- 5% or so?
                 self.timeRemaining = self.cachedLength + variance(self.cachedLength)
+            else:
+                self.timeRemaining = self.jobLength + variance(self.jobLength)
+                self.isCached = True
             return True
         return False
     def step(self):
@@ -41,7 +42,6 @@ class SlaveMachine:
         return False
     def isDone(self):
         if self.timeRemaining <= 0:
-            self.isCached = True
             return True
         return False
     def takeCopy(self):
@@ -50,5 +50,6 @@ class SlaveMachine:
             return True
         return False
 def variance(time):
-    var = random.uniform(-0.05,0.05)
+    varRange = 0.05
+    var = random.uniform(-varRange,varRange)
     return int(var * time)
