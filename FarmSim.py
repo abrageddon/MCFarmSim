@@ -2,7 +2,7 @@
 import SlaveMachine, Storage
 
 ##### Setup
-numberOfSlaves = 20
+numberOfSlaves = 50
 Slaves = []
 S3 = None
 currentStep = 0
@@ -12,10 +12,13 @@ stepToStartTraffic = 10080
 
 # 100,000 is ok; 1,000,000 takes some time
 # 43,800 minutes in a month
-stepsInSim = 43800
+# stepsInSim = 43800
+# stepsInSim = 87600
+stepsInSim = 131400
 
 
 def main():
+    initSlaves()
 
 
     ##### Select traffic pattern
@@ -25,8 +28,8 @@ def main():
     algorithm = algConstBuild
 
     ##### Select setup
-    setup = setupFirefox_Naive_C_XL
-
+    # setup = initFirefox
+    setup = initFirefoxMixed
 
 
     ##### START
@@ -35,14 +38,15 @@ def main():
     global currentStep
     currentStep = 0
 
-    #RUN ALGORITHM
+    #RUN ALGORITHM FIRST
     algorithm()
 
     #WHILE TRAFFIC IS RUNNING
     for i in range(stepsInSim):
+        #NEXT MINUTE
         step()
         #RUN TRAFFIC
-        S3.takeCopies(traffic())
+        S3.takeCopies(getTraffic(traffic, currentStep))
         #RUN ALGORITHM
         algorithm()
 
@@ -62,40 +66,61 @@ def algConstBuild():
     global Slaves
     for i in range(numberOfSlaves):
         if Slaves[i].isDone():
-            Slaves[i].startRun(stepsToComplete)
+            Slaves[i].startRun()
 
 
 ##### Traffics
 
-def traConstantDemand():
+def traConstantDemand(step):
     demand = 1
-    if currentStep > stepToStartTraffic:
-        return demand
-    return 0
+    return demand #dl/min
 
 
 ##### Setups
 
-def setupFirefox_Naive_C_XL():
-    global stepsToComplete
-    stepsToComplete = 22 # minutes
+def initFirefox():
+    global S3
+    S3 = Storage.Storage(0,33) # copies per GB
+    global Slaves
+    for i in range(numberOfSlaves):
+        setFirefox_C_Med_OD(Slaves[i])
+
+def initFirefoxMixed():
+    global S3
+    S3 = Storage.Storage(0,33) # copies per GB
+    global Slaves
+    for i in range(numberOfSlaves/2):
+        setFirefox_C_Med_OD(Slaves[i])
+    for i in range(numberOfSlaves/2, numberOfSlaves):
+        setFirefox_C_XL_OD(Slaves[i])
+
+C_XL_OD = 'C1.XLarge On-Demand'
+def setFirefox_C_XL_OD(Slave):
+    stepsToComplete = 25 # minutes
+    stepsToCompleteCached = 7 # minutes
     computeCost = 0.01 # $/min C1.XL
-    copiesPerGB = 33
-    generalSetup(stepsToComplete, computeCost, copiesPerGB)
+    return Slave.setMachine(C_XL_OD, stepsToComplete, stepsToCompleteCached, computeCost)
 
+C_Med_OD = 'C1.Medium On-Demand'
+def setFirefox_C_Med_OD(Slave):
+    stepsToComplete = 63 # minutes
+    stepsToCompleteCached = 15 # minutes
+    computeCost = 0.0025 # $/min C1.Med
+    return Slave.setMachine(C_Med_OD, stepsToComplete, stepsToCompleteCached, computeCost)
 
-
-
+#TODO Spot instance simulation
 
 ##### Simulation Functions
-def generalSetup(stepsToComplete, computeCost, copiesPerGB):
-    global S3
-    global Slaves
-    S3 = Storage.Storage(0,copiesPerGB) # copies per GB
-    for i in range(numberOfSlaves):
-        temp = SlaveMachine.SlaveMachine(0, computeCost)
-        Slaves.append(temp)
 
+def initSlaves():
+    global Slaves
+    for i in range(numberOfSlaves):
+        slave = SlaveMachine.SlaveMachine()
+        Slaves.append(slave)
+def getTraffic(traffic, step):
+    if (step > stepToStartTraffic):
+        return traffic(step - stepToStartTraffic)
+    return 0
 def step():
     global S3
     global Slaves

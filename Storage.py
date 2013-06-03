@@ -11,10 +11,9 @@ class Storage:
     copiesPerGB = 100
     totalCost = 0
 
-    def __init__(self):
-        pass
     def __init__(self, num, perGB=0):
-        self.addCopies(num)
+        self.total = num
+        self.fresh = num
         if perGB != 0:
             self.copiesPerGB = perGB
     def addCopies(self, num):
@@ -40,10 +39,10 @@ class Storage:
                 self.freshDist += num
         return True
     def delCopies(self, num):
-        if self.total <= 0 or num <= 0:
+        if self.total <= 0 or num <= 0 or self.total <= self.fresh:
             return false
-
         self.total -= num
+        return True
     def step(self):
         self.totalCost += self.costPerStep * float(self.total/self.copiesPerGB)
 
@@ -54,4 +53,7 @@ class Storage:
         print '-' * 80
         print 'Fresh Copies Distributed: ' + str(self.freshDist)
         print 'Stale Copies Distributed: ' + str(self.staleDist)
-        print 'Percent With Fresh Copy: {0:.2f}'.format( (float(self.freshDist) / float(self.freshDist + self.staleDist))*100 )
+        totalCopiesDist = self.freshDist + self.staleDist
+        if totalCopiesDist != 0:
+            print 'Percent With Fresh Copy: {0:.2f}'.format( (float(self.freshDist) / float(totalCopiesDist))*100 )
+        print 'Total Copies Distributed: ' + str(totalCopiesDist)
