@@ -13,7 +13,7 @@ freshCopyMin = 10000
 keepStalePct = 0.30
 
 # 10,080 minutes in a week
-stepToStartTraffic = 10080 # 1 week (Emergency Release)
+stepToStartTraffic = 10080 # 1 week (Quick Release)
 
 # 100,000 is ok; 1,000,000 takes some time
 # 43,800 minutes in a month
@@ -22,6 +22,9 @@ stepsInSim = 43800 # 1 Month
 # stepsInSim = 131400 # 3 Month
 
 # stepsInSim = 30000
+
+
+trafficHistory = [None] * (stepsInSim - stepToStartTraffic)
 
 def main():
     global traffic
@@ -39,12 +42,11 @@ def main():
 
     ##### Select algorthm
     # algorithm = algConstBuild
-    algorithm = algFreshCopyMinBuild
+    algorithm = algFreshCopyMinBuild # Current implementation
     # algorithm = algAdaptiveBuild
 
     ##### Select setup
     setup = initFirefox
-    # setup = initFirefoxMixed
 
 
 
@@ -63,12 +65,17 @@ def main():
 
     #REPORT STATS
     print '=' * 80
-    print 'Total Cost of Slaves: ${0:.2f}'.format(totalSlaveCost())
-    print '=' * 80
     S3.printStats()
-    print '=' * 80
+    print 'Total Cost of Slaves: ${0:.2f}'.format(totalSlaveCost())
     print 'Total Cost: ${0:.2f}'.format(totalSlaveCost() + S3.totalCost)
     print '=' * 80
+
+
+
+
+
+
+
 
 
 ##### Algorithms
@@ -98,7 +105,6 @@ def doRemoveStale():
 
 def algFreshCopyMinBuild():
     #Keep a set amount of fresh; current implementation of actual system
-
     global Slaves
     global S3
 
@@ -130,7 +136,7 @@ def algAdaptiveBuild():
         sumTotal = 0
         
         divisor = min(currentStep - stepToStartTraffic, avgRange)
-        average = int(math.ceil(float(sumTotal)/float(divisor))) #TODO number of non-zero
+        average = int(math.ceil(float(sumTotal)/float(divisor)))
         # print str(average) + ' : ' + str(S3.freshPct()) + ' : ' + str(S3.fresh) + '/' + str(S3.total)
         
         # plan to build 10%? over the expected demand
@@ -146,57 +152,54 @@ def algAdaptiveBuild():
         doRemoveStale()
 
 
+
+
+
+
+
+
 ##### Traffics
 
 def traConstantDemand(step):
     demand = 1
     return demand #dl/min
 
+#TODO keep all traffic points; gen first?
 def traRandomDemand(step):
-    global lastStep
-    global demand
-
-    if step == 0:
-        lastStep = 0
-        demand = random.randint(0,10)
-        return demand
-
-    if lastStep == step:
-        return demand
-    elif lastStep+1 == step:
-        lastStep = step
-        demand = random.randint(0,10)
-        return demand #dl/min
+    global trafficHistory
+    if trafficHistory[step] == None:
+        trafficHistory[step] = random.randint(0,10)
+    return trafficHistory[step]
     
-    return False
 
+#TODO keep all traffic points; gen first?
 def traRandomSpikyDemand(step):
     spikePct = 0.07
 
-    global lastStep
-    global demand
-
-    if step == 0:
-        lastStep = 0
+    global trafficHistory
+    if trafficHistory[step] == None:
         demand = random.randint(0,10)
         if random.random() < spikePct:
             demand *= demand
-        return demand #dl/min
+        trafficHistory[step] = demand
+    return trafficHistory[step]
 
-    if lastStep == step:
-        return demand
-    elif lastStep+1 == step:
-        lastStep = step
-        demand = random.randint(0,10)
-        if random.random() < spikePct:
-            demand *= demand
-        return demand #dl/min
-    
-    return False
+#TODO Poisson process or Queuing theory arrival rate or 
+
+#TODO arrivals peak during the day and ebb at night; e.g. sin(step % minuted_in_a_day)
+
+#TODO rational (y=1/x) probability curve; high chance of low traffic, low chance of high traffic
+
+#TODO Major release; start with really high demand and level out to constant; model actual Firefox release
+
+#TODO Adaptive traffic; try to keep freshPct as low as possible
+
+
 
 
 ##### Setups
 
+#TODO load available instances to a list for easy management
 def initFirefox():
     global S3
     S3 = Storage.Storage(0,33) # copies per GB
@@ -204,14 +207,6 @@ def initFirefox():
     for i in range(numberOfSlaves):
         setFirefox_C_Med_OD(Slaves[i])
 
-def initFirefoxMixed():
-    global S3
-    S3 = Storage.Storage(0,33) # copies per GB
-    global Slaves
-    for i in range(numberOfSlaves/2):
-        setFirefox_C_Med_OD(Slaves[i])
-    for i in range(numberOfSlaves/2, numberOfSlaves):
-        setFirefox_C_XL_OD(Slaves[i])
 
 
 #TODO make these into objects to be able to reference their data
@@ -231,6 +226,13 @@ def setFirefox_C_Med_OD(Slave):
     return Slave.setMachine(C_Med_OD, stepsToComplete, stepsToCompleteCached, computeCost)
 
 #TODO Spot instance simulation
+
+
+
+
+
+
+
 
 ##### Simulation Functions
 

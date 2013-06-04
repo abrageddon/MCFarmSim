@@ -50,6 +50,6 @@ class SlaveMachine:
             return True
         return False
 def variance(time):
-    varRange = 0.05
+    varRange = 0.03
     var = random.uniform(-varRange,varRange)
     return int(var * time)
