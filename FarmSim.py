@@ -52,17 +52,14 @@ def main():
     ##### START
     setup()
 
-    #RUN ALGORITHM FIRST
-    algorithm()
-
     #WHILE TRAFFIC IS RUNNING
     for i in range(stepsInSim):
-        #NEXT MINUTE
-        step()
-        #RUN TRAFFIC
-        S3.takeCopies(getTraffic(currentStep))
         #RUN ALGORITHM
         algorithm()
+        #RUN TRAFFIC
+        S3.takeCopies(getTraffic(currentStep))
+        #NEXT MINUTE
+        step()
 
     #REPORT STATS
     print '=' * 80
@@ -117,7 +114,7 @@ def algFreshCopyMinBuild():
         doRemoveStale()
 
 def algAdaptiveBuild():
-    waitForTraffic = 1  # Get at least this many samples
+    waitForTraffic = 0  # Get at least this many samples
 
     global Slaves
     global S3
@@ -131,8 +128,7 @@ def algAdaptiveBuild():
         #TODO range based on build time; reaction time
         avgRange = 120 # over past X steps
         sumTotal = 0
-        for j in range(currentStep - avgRange, currentStep):
-            sumTotal += getTraffic(j)
+        
         divisor = min(currentStep - stepToStartTraffic, avgRange)
         average = int(math.ceil(float(sumTotal)/float(divisor))) #TODO number of non-zero
         # print str(average) + ' : ' + str(S3.freshPct()) + ' : ' + str(S3.fresh) + '/' + str(S3.total)
@@ -157,15 +153,46 @@ def traConstantDemand(step):
     return demand #dl/min
 
 def traRandomDemand(step):
-    demand = random.randint(0,10)
-    return demand #dl/min
+    global lastStep
+    global demand
+
+    if step == 0:
+        lastStep = 0
+        demand = random.randint(0,10)
+        return demand
+
+    if lastStep == step:
+        return demand
+    elif lastStep+1 == step:
+        lastStep = step
+        demand = random.randint(0,10)
+        return demand #dl/min
+    
+    return False
 
 def traRandomSpikyDemand(step):
-    demand = random.randint(0,10)
     spikePct = 0.07
-    if random.random() < spikePct:
-        demand *= demand
-    return demand #dl/min
+
+    global lastStep
+    global demand
+
+    if step == 0:
+        lastStep = 0
+        demand = random.randint(0,10)
+        if random.random() < spikePct:
+            demand *= demand
+        return demand #dl/min
+
+    if lastStep == step:
+        return demand
+    elif lastStep+1 == step:
+        lastStep = step
+        demand = random.randint(0,10)
+        if random.random() < spikePct:
+            demand *= demand
+        return demand #dl/min
+    
+    return False
 
 
 ##### Setups
@@ -213,7 +240,7 @@ def initSlaves():
         slave = SlaveMachine.SlaveMachine()
         Slaves.append(slave)
 def getTraffic(step):
-    if (step > stepToStartTraffic):
+    if (step >= stepToStartTraffic):
         return traffic(step - stepToStartTraffic)
     return 0
 def step():
