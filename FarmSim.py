@@ -105,7 +105,7 @@ def algFreshCopyMinBuild():
     global Slaves
     global S3
 
-    if currentStep <= stepToStartTraffic + waitForTraffic:
+    if currentStep <= stepToStartTraffic:
         for i in range(numberOfSlaves):
             if Slaves[i].isDone():
                 Slaves[i].startRun()
