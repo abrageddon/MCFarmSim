@@ -8,6 +8,10 @@ Slaves = []
 S3 = None
 currentStep = 0
 
+#ADAPTIVE BUILD SETTINGS
+freshCopyMin = 10000
+keepStalePct = 0.30
+
 # 10,080 minutes in a week
 stepToStartTraffic = 10080 # 1 week (Emergency Release)
 
@@ -17,7 +21,7 @@ stepsInSim = 43800 # 1 Month
 # stepsInSim = 87600 # 2 Month
 # stepsInSim = 131400 # 3 Month
 
-# stepsInSim = 15000
+# stepsInSim = 30000
 
 def main():
     global traffic
@@ -30,7 +34,8 @@ def main():
 
     ##### Select traffic pattern
     # traffic = traConstantDemand
-    traffic = traRandomDemand
+    # traffic = traRandomDemand
+    traffic = traRandomSpikyDemand
 
     ##### Select algorthm
     # algorithm = algConstBuild
@@ -77,11 +82,24 @@ def algConstBuild():
             Slaves[i].startRun()
 
 
+def doRemoveStale():
+    global S3
+    removeStale = 0
+    if S3.stalePct() > keepStalePct: #TODO change to real cleanup algorithm; if demand is up then keep more stale
+        if S3.fresh < freshCopyMin:
+            removeStale = int(S3.total - freshCopyMin)
+        elif S3.total > freshCopyMin:
+            removeStale = int(math.floor(S3.total - S3.fresh/((1.0-(keepStalePct/2))) ))
+
+    if removeStale == 0 : return True
+
+    # print "Too Stale: " + str(S3.stalePct()) + ' : ' + str(removeStale) + ' - ' + str(S3.fresh) + '/' + str(S3.total)
+    S3.delCopies(removeStale)
+    # print str(S3.stalePct()) + " : " + str(S3.total)
+    return True
+
 def algAdaptiveBuild():
     waitForTraffic = 1  # Get at least this many samples
-    freshCopyMin = 1000
-    overbuildPct = 20.0
-    keepStalePct = 20.0
 
     global Slaves
     global S3
@@ -108,14 +126,11 @@ def algAdaptiveBuild():
 
         # assign machines
         for i in range(numberOfSlaves):
-            if Slaves[i].isDone() and S3.fresh < freshCopyMin * (1+overbuildPct/100): #TODO change to real limiter
+            if Slaves[i].isDone() and S3.fresh < freshCopyMin: #TODO change to real limiter
                 Slaves[i].startRun()
 
-        if S3.stalePct() > keepStalePct: #TODO change to real cleanup algorithm; if demand is up then keep more stale
-            removeStale = int(math.floor(S3.total - S3.fresh/((100.0-(keepStalePct/2))/100) ))
-            # print "Too Stale: " + str(S3.stalePct()) + ' : ' + str(removeStale) + ' - ' + str(S3.fresh) + '/' + str(S3.total)
-            S3.delCopies(removeStale)
-            # print str(S3.stalePct()) + " : " + str(S3.total)
+        doRemoveStale()
+
 
 ##### Traffics
 
@@ -125,6 +140,13 @@ def traConstantDemand(step):
 
 def traRandomDemand(step):
     demand = random.randint(0,10)
+    return demand #dl/min
+
+def traRandomSpikyDemand(step):
+    demand = random.randint(0,10)
+    spikePct = 0.07
+    if random.random() < spikePct:
+        demand *= demand
     return demand #dl/min
 
 

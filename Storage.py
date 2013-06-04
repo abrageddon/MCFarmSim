@@ -28,37 +28,46 @@ class Storage:
         if self.total <= 0:
             print 'NO COPIES TO FUFILL REQUEST!!!'
             return False
-        if num > self.fresh:
+
+        if num > self.total:
+            print "DEMAND WAS HIGER THAN TOTAL COPIES: " + self.total +'-'+num
             over = num - self.fresh
             self.freshDist += self.fresh
             self.staleDist += over
             self.fresh = 0
-        else:
-            if self.fresh > 0:
-                self.fresh -= num
-                self.freshDist += num
+        elif num > self.fresh:
+            over = num - self.fresh
+            self.freshDist += self.fresh
+            self.staleDist += over
+            self.fresh = 0
+        elif self.fresh > 0:
+            self.fresh -= num
+            self.freshDist += num
+
         return True
+
     def delCopies(self, num):
-        if self.total <= 0 or self.total < num or self.fresh < num or num <= 0 or self.total <= self.fresh:
+        if self.total <= 0 or self.total < num or self.total - self.fresh < num or num <= 0 or self.total <= self.fresh:
             return False
         self.total -= num
         return True
+
     def step(self):
         self.totalCost += self.costPerStep * float(self.total/self.copiesPerGB)
 
     def freshPct(self):
         if self.total == 0:
             return 0
-        return (float(self.fresh) / float(self.total))*100
+        return (float(self.fresh) / float(self.total))
     def stalePct(self):
         if self.total == 0:
             return 0
-        return (float(self.total - self.fresh) / float(self.total))*100
+        return (float(self.total - self.fresh) / float(self.total))
     def printStats(self):
         print 'Fresh Copies: ' + str(self.fresh)
         print 'Total Copies: ' + str(self.total)
         if self.total != 0:
-            print 'Percent Fresh: {0:.1f}%'.format( self.freshPct() )
+            print 'Percent Fresh: {0:.1f}%'.format( self.freshPct()*100 )
         print '-' * 80
         print 'Stale Copies Distributed: ' + str(self.staleDist)
         print 'Fresh Copies Distributed: ' + str(self.freshDist)
