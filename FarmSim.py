@@ -39,7 +39,8 @@ def main():
 
     ##### Select algorthm
     # algorithm = algConstBuild
-    algorithm = algAdaptiveBuild
+    algorithm = algFreshCopyMinBuild
+    # algorithm = algAdaptiveBuild
 
     ##### Select setup
     setup = initFirefox
@@ -97,6 +98,23 @@ def doRemoveStale():
     S3.delCopies(removeStale)
     # print str(S3.stalePct()) + " : " + str(S3.total)
     return True
+
+def algFreshCopyMinBuild():
+    #Keep a set amount of fresh; current implementation of actual system
+
+    global Slaves
+    global S3
+
+    if currentStep <= stepToStartTraffic + waitForTraffic:
+        for i in range(numberOfSlaves):
+            if Slaves[i].isDone():
+                Slaves[i].startRun()
+    else:
+        for i in range(numberOfSlaves):
+            if Slaves[i].isDone() and S3.fresh < freshCopyMin:
+                Slaves[i].startRun()
+
+        doRemoveStale()
 
 def algAdaptiveBuild():
     waitForTraffic = 1  # Get at least this many samples
