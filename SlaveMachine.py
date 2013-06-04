@@ -31,7 +31,7 @@ class SlaveMachine:
                 self.timeRemaining = self.cachedLength + variance(self.cachedLength)
             else:
                 self.timeRemaining = self.jobLength + variance(self.jobLength)
-                self.isCached = True
+            self.isCached = True
             return True
         return False
     def step(self):

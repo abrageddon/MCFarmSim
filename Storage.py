@@ -39,21 +39,36 @@ class Storage:
                 self.freshDist += num
         return True
     def delCopies(self, num):
-        if self.total <= 0 or num <= 0 or self.total <= self.fresh:
-            return false
+        if self.total <= 0 or self.total < num or self.fresh < num or num <= 0 or self.total <= self.fresh:
+            return False
         self.total -= num
         return True
     def step(self):
         self.totalCost += self.costPerStep * float(self.total/self.copiesPerGB)
 
+    def freshPct(self):
+        if self.total == 0:
+            return 0
+        return (float(self.fresh) / float(self.total))*100
+    def stalePct(self):
+        if self.total == 0:
+            return 0
+        return (float(self.total - self.fresh) / float(self.total))*100
     def printStats(self):
-        print 'Total Copies: ' + str(self.total)
         print 'Fresh Copies: ' + str(self.fresh)
-        print 'Total Cost of Storage: ${0:.2f}'.format(self.totalCost)
+        print 'Total Copies: ' + str(self.total)
+        if self.total != 0:
+            print 'Percent Fresh: {0:.1f}%'.format( self.freshPct() )
         print '-' * 80
-        print 'Fresh Copies Distributed: ' + str(self.freshDist)
         print 'Stale Copies Distributed: ' + str(self.staleDist)
+        print 'Fresh Copies Distributed: ' + str(self.freshDist)
         totalCopiesDist = self.freshDist + self.staleDist
-        if totalCopiesDist != 0:
-            print 'Percent With Fresh Copy: {0:.2f}'.format( (float(self.freshDist) / float(totalCopiesDist))*100 )
         print 'Total Copies Distributed: ' + str(totalCopiesDist)
+        if totalCopiesDist != 0:
+            print 'Percent With A Fresh Copy: {0:.2f}%'.format( (float(self.freshDist) / float(totalCopiesDist))*100 )
+        print '-' * 80
+        print 'Total Cost of Storage: ${0:.2f}'.format(self.totalCost)
+
+
+
+

@@ -3,21 +3,21 @@ import SlaveMachine, Storage
 import math, random
 
 ##### Setup
-numberOfSlaves = 50
+numberOfSlaves = 100
 Slaves = []
 S3 = None
 currentStep = 0
 
 # 10,080 minutes in a week
-stepToStartTraffic = 10080 # 1 week
+stepToStartTraffic = 10080 # 1 week (Emergency Release)
 
 # 100,000 is ok; 1,000,000 takes some time
 # 43,800 minutes in a month
-# stepsInSim = 43800 # 1 Month
+stepsInSim = 43800 # 1 Month
 # stepsInSim = 87600 # 2 Month
 # stepsInSim = 131400 # 3 Month
 
-stepsInSim = 15000
+# stepsInSim = 15000
 
 def main():
     global traffic
@@ -29,12 +29,12 @@ def main():
 
 
     ##### Select traffic pattern
-    traffic = traConstantDemand
-    # traffic = traRandomDemand
+    # traffic = traConstantDemand
+    traffic = traRandomDemand
 
     ##### Select algorthm
     # algorithm = algConstBuild
-    algorithm = algAdaptiveConstBuild
+    algorithm = algAdaptiveBuild
 
     ##### Select setup
     setup = initFirefox
@@ -77,27 +77,45 @@ def algConstBuild():
             Slaves[i].startRun()
 
 
-def algAdaptiveConstBuild():
+def algAdaptiveBuild():
+    waitForTraffic = 1  # Get at least this many samples
+    freshCopyMin = 1000
+    overbuildPct = 20.0
+    keepStalePct = 20.0
+
     global Slaves
-    waitForTraffic = 1
+    global S3
+
     if currentStep <= stepToStartTraffic + waitForTraffic:
         for i in range(numberOfSlaves):
             if Slaves[i].isDone():
                 Slaves[i].startRun()
     else:
         # calculate average demand
-        avgRange = 30
+        #TODO range based on build time; reaction time
+        avgRange = 120 # over past X steps
         sumTotal = 0
         for j in range(currentStep - avgRange, currentStep):
             sumTotal += getTraffic(j)
-        average = int(math.ceil(float(sumTotal)/float(avgRange)))
-
+        divisor = min(currentStep - stepToStartTraffic, avgRange)
+        average = int(math.ceil(float(sumTotal)/float(divisor))) #TODO number of non-zero
+        # print str(average) + ' : ' + str(S3.freshPct()) + ' : ' + str(S3.fresh) + '/' + str(S3.total)
+        
         # plan to build 10%? over the expected demand
+        #build rate for each instance
+        #dynamic algorithm to start the optimal number of 
+
 
         # assign machines
         for i in range(numberOfSlaves):
-            if Slaves[i].isDone():
+            if Slaves[i].isDone() and S3.fresh < freshCopyMin * (1+overbuildPct/100): #TODO change to real limiter
                 Slaves[i].startRun()
+
+        if S3.stalePct() > keepStalePct: #TODO change to real cleanup algorithm; if demand is up then keep more stale
+            removeStale = int(math.floor(S3.total - S3.fresh/((100.0-(keepStalePct/2))/100) ))
+            # print "Too Stale: " + str(S3.stalePct()) + ' : ' + str(removeStale) + ' - ' + str(S3.fresh) + '/' + str(S3.total)
+            S3.delCopies(removeStale)
+            # print str(S3.stalePct()) + " : " + str(S3.total)
 
 ##### Traffics
 
