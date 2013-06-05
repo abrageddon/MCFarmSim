@@ -2,29 +2,35 @@
 import SlaveMachine, Storage
 import math, random
 
-##### Setup
+##### INIT VARS
 numberOfSlaves = 100
 Slaves = []
 S3 = None
 currentStep = 0
 
+
 #ADAPTIVE BUILD SETTINGS
 freshCopyMin = 10000
+
+
+#STALE CLEANUP SETTINGS
 keepStalePct = 0.30
 
+
+stepsInSim = 10080 ; print "Period: 1 Week"
+# stepsInSim = 43800 ; print "Period: 1 Month"
+# stepsInSim = 87600  ; print "Period: 2 Months"
+# stepsInSim = 131400  ; print "Period: 3 Months"
+
+# stepsInSim = 30000 ; print "{0} Minutes".format(stepsInSim)
+
+
 # 10,080 minutes in a week
-stepToStartTraffic = 10080 # 1 week (Quick Release)
+stepToStartTraffic = 1440 ; print "Time to Release: 1 Day (Emergency Release)"
+# stepToStartTraffic = 10080 ; print "Time to Release: 1 Week (Quick Release)"
+# stepToStartTraffic = 43800 ; print "Time to Release: 1 Month (Slow Release)"
 
-# 100,000 is ok; 1,000,000 takes some time
-# 43,800 minutes in a month
-stepsInSim = 43800 # 1 Month
-# stepsInSim = 87600 # 2 Month
-# stepsInSim = 131400 # 3 Month
-
-# stepsInSim = 30000
-
-
-trafficHistory = [None] * (stepsInSim - stepToStartTraffic)
+trafficHistory = [None] * (stepsInSim - stepToStartTraffic) #INITALIZE HISTORY
 
 def main():
     global traffic
@@ -33,20 +39,24 @@ def main():
     initSlaves()
 
 
+    ##### Select Build Target
+    setup = initFirefox ; print "Building: Firefox"
 
 
-    ##### Select traffic pattern
-    # traffic = traConstantDemand
-    # traffic = traRandomDemand
-    traffic = traRandomSpikyDemand
 
-    ##### Select algorthm
-    # algorithm = algConstBuild
-    algorithm = algFreshCopyMinBuild # Current implementation
-    # algorithm = algAdaptiveBuild
+    ##### Select Algorithm
+    # algorithm = algConstBuild ; print "Algorithm: Constant"
+    algorithm = algFreshCopyMinBuild ; print "Algorithm: Keep {0} Fresh Copies".format(freshCopyMin)
+    # algorithm = algAdaptiveBuild ; print "Algorithm: Adaptive (TODO)"
 
-    ##### Select setup
-    setup = initFirefox
+
+
+    ##### Select Traffic Pattern
+    # traffic = traConstantDemand ; print "Traffic: Constant"
+    # traffic = traRandomDemand ; print "Traffic: Random"
+    traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
+
+
 
 
 
@@ -66,8 +76,8 @@ def main():
     #REPORT STATS
     print '=' * 80
     S3.printStats()
-    print 'Total Cost of Slaves: ${0:.2f}'.format(totalSlaveCost())
-    print 'Total Cost: ${0:.2f}'.format(totalSlaveCost() + S3.totalCost)
+    print 'Total Cost of Slaves:  ${0:10,.2f}'.format(totalSlaveCost())
+    print 'Total Cost:            ${0:10,.2f}'.format(totalSlaveCost() + S3.totalCost)
     print '=' * 80
 
 
@@ -174,7 +184,7 @@ def traRandomDemand(step):
 
 #TODO keep all traffic points; gen first?
 def traRandomSpikyDemand(step):
-    spikePct = 0.07
+    spikePct = 0.08
 
     global trafficHistory
     if trafficHistory[step] == None:
