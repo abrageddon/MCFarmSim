@@ -30,7 +30,7 @@ class Storage:
             return False
 
         if num > self.total:
-            print "DEMAND WAS HIGER THAN TOTAL COPIES: " + self.total +'-'+num
+            print "DEMAND WAS HIGER THAN TOTAL COPIES: " + str(self.total) +'-'+ str(num)
             over = num - self.fresh
             self.freshDist += self.fresh
             self.staleDist += over

@@ -8,6 +8,7 @@ class SlaveMachine:
     jobLength = 0
     cachedLength = 0
     isCached = False
+    isSpot = False
 
     timeRemaining = -1
     costPerStep = 0
@@ -16,15 +17,20 @@ class SlaveMachine:
 
     def __init__(self):
         pass
-    def setMachine(self, label, job, cached, cost):
-        # kill current run
+    def reset(self):
         self.timeRemaining = -1
         self.isCached = False
+    def setParameters(self, label, steps, cached, cost, isSpot):
+        # kill current run
+        self.reset()
         # load new settings
         self.label = label
-        self.jobLength = job
+        self.jobLength = steps
         self.cachedLength = cached
         self.costPerStep = cost
+        self.isSpot = isSpot
+    def setMachine(self, instance):
+        instance.setInstance(self)
     def startRun(self):
         if self.timeRemaining <= 0 and self.jobLength > 0 and self.cachedLength > 0:
             if self.isCached:
@@ -34,8 +40,12 @@ class SlaveMachine:
             self.isCached = True
             return True
         return False
-    def step(self):
+    def step(self, outbid):
         if self.timeRemaining > 0:
+            if outbid and self.isSpot:
+                # print "DIED: "+str(self.timeRemaining)
+                self.reset()
+                return False
             self.timeRemaining -= 1
             self.totalCost += self.costPerStep
             return True
