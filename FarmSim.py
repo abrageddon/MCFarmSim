@@ -12,7 +12,7 @@ currentStep = 0
 
 
 # FRESH COPY BASED SETTINGS
-freshCopyMin = 10000
+freshCopyMin = 1000
 
 
 #STALE CLEANUP SETTINGS
@@ -31,12 +31,12 @@ stepsInSim = 43800 ; print "Period: 1 Month"
 
 
 # 10,080 minutes in a week
-stepToStartTraffic = 1440 ; print "Time to Release: 1 Day (Emergency Release)"
-# stepToStartTraffic = 10080 ; print "Time to Release: 1 Week (Quick Release)"
+# stepToStartTraffic = 1440 ; print "Time to Release: 1 Day (Emergency Release)"
+stepToStartTraffic = 10080 ; print "Time to Release: 1 Week (Quick Release)"
 # stepToStartTraffic = 43800 ; print "Time to Release: 1 Month (Slow Release)"
 # stepToStartTraffic = stepsInSim ; print "Time to Release: Never (No Traffic)"
 
-
+# stepsInSim = stepToStartTraffic
 
 
 
@@ -50,7 +50,7 @@ calcFreshCopyMin = freshCopyMin
 
 #TODO Determine these values based on Instances; replace 30 estimate
 #ADAPTIVE BUILD ADJUSTMENT PARAMETERS
-shortageMultiplier = 100.0
+shortageMultiplier = 1.0
 rise = (float(freshCopyMin)/float(numberOfSlaves))/float(freshCopyMin)/30
 fall = ((float(freshCopyMin)/float(numberOfSlaves))/(float(freshCopyMin))/30) / ((float(freshCopyMin)/float(numberOfSlaves)) * 30)
 
@@ -82,8 +82,8 @@ def main():
     ##### Select Traffic Pattern
     # traffic = traConstantDemand ; print "Traffic: Constant"
     # traffic = traRandomDemand ; print "Traffic: Random"
-    # traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
-    traffic = traFirefox ; print "Traffic: Firefox 4 Release Simulation"
+    traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
+    # traffic = traFirefox ; print "Traffic: Firefox 4 Release Simulation"
 
 
 
@@ -105,6 +105,7 @@ def main():
 
 
     #REPORT STATS
+    print ''
     print '=' * 80
     S3.printStats()
     print 'Total Cost of Slaves:  ${0:10,.2f}'.format(totalSlaveCost())
@@ -174,8 +175,11 @@ def algFreshAdaptiveBuild():
     if currentStep <= stepToStartTraffic:
         startAvailableOnCheapestSpot()
     else:
-        if S3.freshPct() < 1-keepStalePct:
+        if S3.freshPct() < 0.95:
             shortageMultiplier = shortageMultiplier + rise
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+        elif S3.freshPct() < 0.75:
+            shortageMultiplier = shortageMultiplier + (2*rise)
             calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
         elif S3.freshPct() > 0.99:
             shortageMultiplier = max(1, shortageMultiplier - fall)  # slow fall
@@ -293,9 +297,7 @@ def initFirefox():
     instances.append(Instance.Instance('C1.Medium On-Demand', 63, 15, 0.00241, False))
     instances.append(Instance.Instance('C1.XLarge On-Demand', 25,  7, 0.00967, False))
     #TODO adjust number of slaves
-    global numberOfSlaves
-    numberOfSlaves = 30000
-    initSlaves()
+    setSlaves(500)
 
     #Start with a high estimate; adaptive only
     # global calcFreshCopyMin
@@ -359,6 +361,10 @@ def startAvailableOnFastestOnDemand():
 
 ##### Simulation Functions
 
+def setSlaves(num):
+    global numberOfSlaves
+    numberOfSlaves = num
+    initSlaves()
 def initSlaves():
     global Slaves
     Slaves = []
@@ -375,6 +381,7 @@ def step():
     global currentStep
     currentStep += 1
 
+#TODO
     # percentComplete = currentStep/stepsInSim
     # if percentComplete:
     #     sys.stdout.write(".")

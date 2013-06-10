@@ -41,6 +41,9 @@ class SlaveMachine:
             return True
         return False
     def step(self, outbid):
+
+        #TODO Charge by the hour
+
         if self.timeRemaining > 0:
             if outbid and self.isSpot:
                 # print "DIED: "+str(self.timeRemaining)

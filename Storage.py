@@ -64,15 +64,15 @@ class Storage:
             return 0
         return (float(self.total - self.fresh) / float(self.total))
     def printStats(self):
-        print 'Fresh Copies:   {0:10n}'.format(self.fresh)
-        print 'Total Copies:   {0:10n}'.format(self.total)
+        print 'Fresh Copies:   {0:10,}'.format(self.fresh)
+        print 'Total Copies:   {0:10,}'.format(self.total)
         if self.total != 0:
             print 'Percent Fresh: {0:10,.1f}%'.format( self.freshPct()*100 )
         print '-' * 80
-        print 'Stale Copies Distributed:   {0:10n}'.format(self.staleDist)
-        print 'Fresh Copies Distributed:   {0:10n}'.format(self.freshDist)
+        print 'Stale Copies Distributed:   {0:10,}'.format(self.staleDist)
+        print 'Fresh Copies Distributed:   {0:10,}'.format(self.freshDist)
         totalCopiesDist = self.freshDist + self.staleDist
-        print 'Total Copies Distributed:   {0:10n}'.format( totalCopiesDist)
+        print 'Total Copies Distributed:   {0:10,}'.format( totalCopiesDist)
         if totalCopiesDist != 0:
             print 'Percent With A Fresh Copy: {0:10,.2f}%'.format( (float(self.freshDist) / float(totalCopiesDist))*100 )
         print '-' * 80
