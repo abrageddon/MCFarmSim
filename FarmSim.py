@@ -62,7 +62,9 @@ def main():
 
 
     ##### Select Build Target
-    setup = initFirefox ; print "Building: Firefox"
+    # setup = initFirefox ; print "Building: Firefox"
+    setup = initSmallApp ; print "Building: SmallApp"
+
 
 
 
@@ -82,8 +84,9 @@ def main():
     ##### Select Traffic Pattern
     # traffic = traConstantDemand ; print "Traffic: Constant"
     # traffic = traRandomDemand ; print "Traffic: Random"
-    traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
+    # traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
     # traffic = traFirefox ; print "Traffic: Firefox 4 Release Simulation"
+    traffic = traVariedDemand; print "Traffic: Exponential"
 
 
 
@@ -188,7 +191,8 @@ def algFreshAdaptiveBuild():
         # assign machines
         algTierLinearBuild()
 
-        doRemoveStale()
+        # this is redundant with the one in algTierLinearBuild
+        # doRemoveStale()
 
 
 
@@ -263,6 +267,25 @@ def traRandomSpikyDemand(step):
         trafficHistory[step] = demand
     return trafficHistory[step]
 
+
+#TODO keep all traffic points; gen first?
+count = 0
+
+def traVariedDemand(step):
+    global count
+    global trafficHistory
+    if trafficHistory[step] == None:
+        if count >= 10 and count <= 13:
+             trafficHistory[step] = trafficHistory[step-1] * random.randint(0,10)
+             count += 1
+        elif count > 13 and count <= 16:
+             trafficHistory[step] = int(trafficHistory[step-1] / random.randint(1,10))
+             count += 1
+        else:
+             trafficHistory[step] = random.randint(0,10)
+             count = random.randint(0,10)
+    return trafficHistory[step]
+
 #TODO Poisson process or Queuing theory arrival rate or 
 
 #TODO arrivals peak during the day and ebb at night; e.g. sin(step % minuted_in_a_day)
@@ -305,8 +328,50 @@ def initFirefox():
 
     global S3
     S3 = Storage.Storage(0,33) # copies per GB
+    
+    
+    
+
+##### Setups
+
+#TODO load available instances to a list for easy management
+def initSmallApp():
+    global instances
+    instances = []
+    instances.append(Instance.Instance('C1.Medium Spot',      21, 5, 0.00046, True))
+    instances.append(Instance.Instance('C1.XLarge Spot',      8,  2, 0.00186, True))
+    instances.append(Instance.Instance('C1.Medium On-Demand', 21, 5, 0.00241, False))
+    instances.append(Instance.Instance('C1.XLarge On-Demand', 8,  2, 0.00967, False))
+    #TODO adjust number of slaves
+    setSlaves(500)
+
+    #Start with a high estimate; adaptive only
+    # global calcFreshCopyMin
+    # calcFreshCopyMin = freshCopyMin * 2
+
+    global S3
+    S3 = Storage.Storage(0,33) # copies per GB
 
 
+##### Setups
+
+#TODO load available instances to a list for easy management
+def initLargeApp():
+    global instances
+    instances = []
+    instances.append(Instance.Instance('C1.Medium Spot',      252, 60, 0.00046, True))
+    instances.append(Instance.Instance('C1.XLarge Spot',      100,  28, 0.00186, True))
+    instances.append(Instance.Instance('C1.Medium On-Demand', 252, 60, 0.00241, False))
+    instances.append(Instance.Instance('C1.XLarge On-Demand', 100,  28, 0.00967, False))
+    #TODO adjust number of slaves
+    setSlaves(500)
+
+    #Start with a high estimate; adaptive only
+    # global calcFreshCopyMin
+    # calcFreshCopyMin = freshCopyMin * 2
+
+    global S3
+    S3 = Storage.Storage(0,33) # copies per GB
 
 
 ##### Helper Functions
