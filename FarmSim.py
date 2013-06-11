@@ -10,9 +10,11 @@ S3 = None
 currentStep = 0
 
 
+# This should be based on the size of APP
+fixedFreshCopyMin = 1000
 
 # FRESH COPY BASED SETTINGS
-freshCopyMin = 1000
+freshCopyMin = fixedFreshCopyMin
 
 
 #STALE CLEANUP SETTINGS
@@ -62,8 +64,8 @@ def main():
 
 
     ##### Select Build Target
-    # setup = initFirefox ; print "Building: Firefox"
-    setup = initSmallApp ; print "Building: SmallApp"
+    setup = initFirefox ; print "Building: Firefox"
+    # setup = initSmallApp ; print "Building: SmallApp"
 
 
 
@@ -76,8 +78,9 @@ def main():
     # algorithm = algTierLinearBuild ; print "Algorithm: 3-Tier Linear\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}x{{1.00, 0.75, 0.25}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     # algorithm = algTierExpBuild ; print "Algorithm: 3-Tier Exponential\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}^{{1.00, 0.1, 0.01}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     
-    algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
+    # algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
     # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive (TODO)"
+    algorithm = algDailyBuild ; print "Algorithm: Daily"
 
 
 
@@ -86,7 +89,9 @@ def main():
     # traffic = traRandomDemand ; print "Traffic: Random"
     # traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
     # traffic = traFirefox ; print "Traffic: Firefox 4 Release Simulation"
-    traffic = traVariedDemand; print "Traffic: Exponential"
+    # traffic = traVariedDemand; print "Traffic: Exponential"
+    traffic = traDailyDemand; print "Traffic: Daily"
+
 
 
 
@@ -174,6 +179,55 @@ def algFreshAdaptiveBuild():
     global Slaves
     global S3
     global calcFreshCopyMin
+
+    
+    if currentStep <= stepToStartTraffic:
+        startAvailableOnCheapestSpot()
+    else:
+        if S3.freshPct() < 0.95:
+            shortageMultiplier = shortageMultiplier + rise
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+        elif S3.freshPct() < 0.75:
+            shortageMultiplier = shortageMultiplier + (2*rise)
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+        elif S3.freshPct() > 0.99:
+            shortageMultiplier = max(1, shortageMultiplier - fall)  # slow fall
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+
+        # assign machines
+        algTierLinearBuild()
+
+        # this is redundant with the one in algTierLinearBuild
+        # doRemoveStale()
+        
+
+def algDailyBuild():
+    global shortageMultiplier
+    global Slaves
+    global S3
+    global calcFreshCopyMin
+    global freshCopyMin
+    
+    clockTime = currentStep % 1440
+    
+    if clockTime >= 0 and clockTime < 300:  # need less freshCopy
+        freshCopyMin = int(0.05 * fixedFreshCopyMin)
+    elif clockTime >=300 and clockTime < 450:
+        freshCopyMin = int(0.3 * fixedFreshCopyMin)
+    elif clockTime >= 450 and clockTime < 690:
+        freshCopyMin = fixedFreshCopyMin
+    elif clockTime >= 690 and clockTime < 720:
+        freshCopyMin = int(0.15 * fixedFreshCopyMin)
+    elif clockTime >= 720 and clockTime < 930:
+        freshCopyMin = fixedFreshCopyMin
+    elif clockTime >= 930 and clockTime < 1050:
+        freshCopyMin = int(0.45 * fixedFreshCopyMin)
+    elif clockTime >= 1050 and clockTime < 1140:
+        freshCopyMin = int(0.15 * fixedFreshCopyMin)
+    elif clockTime >= 1140 and clockTime < 1290:
+        freshCopyMin = int(0.45 * fixedFreshCopyMin)
+    else:
+        freshCopyMin = int(0.15 * fixedFreshCopyMin)
 
     if currentStep <= stepToStartTraffic:
         startAvailableOnCheapestSpot()
@@ -285,6 +339,50 @@ def traVariedDemand(step):
              trafficHistory[step] = random.randint(0,10)
              count = random.randint(0,10)
     return trafficHistory[step]
+
+#TODO keep all traffic points; gen first?
+# The step starts from mid-night
+def traDailyDemand(step):
+    global count
+    global trafficHistory
+    clockTime = step % 1440
+    if trafficHistory[step] == None:
+        if clockTime >= 0 and clockTime <= 360:   # everyone is sleeping
+            trafficHistory[step] = random.randint(0,1) * random.randint(0,1) * random.randint(0,1) * random.randint(0,1)
+        elif clockTime > 360 and clockTime <= 540:  # a few people start to work
+            trafficHistory[step] = random.randint(0,2)
+        elif clockTime > 540 and clockTime <= 720: # lot of people start to work and exponentially increase
+            if count >= 10 and count <= 12:
+                trafficHistory[step] = trafficHistory[step-1] * random.randint(2,10)
+                count += 1
+            elif count > 12 and count <= 14:
+                trafficHistory[step] = int(trafficHistory[step-1] / random.randint(2,10))
+                count += 1
+            else:
+                trafficHistory[step] = random.randint(2,10)
+                count = random.randint(0,10)
+        elif clockTime > 720 and clockTime <= 780: # lunch time
+            trafficHistory[step] = random.randint(0,1)
+        elif clockTime > 780 and clockTime <= 960: # back to work
+            if count >= 10 and count <= 12:
+                trafficHistory[step] = trafficHistory[step-1] * random.randint(2,10)
+                count += 1
+            elif count > 12 and count <= 14:
+                trafficHistory[step] = int(trafficHistory[step-1] / random.randint(2,10))
+                count += 1
+            else:
+                trafficHistory[step] = random.randint(2,10)
+                count = random.randint(0,10)
+        elif clockTime > 960 and clockTime <= 1080: # start to slack off
+            trafficHistory[step] = random.randint(0,3)
+        elif clockTime > 1080 and clockTime <= 1200: # dinner time
+            trafficHistory[step] = random.randint(0,1)
+        elif clockTime > 1200 and clockTime <= 1320: # entertainment time
+            trafficHistory[step] = random.randint(0,3)
+        else:                                    # before sleep 
+            trafficHistory[step] = random.randint(0,1)
+    return trafficHistory[step]
+
 
 #TODO Poisson process or Queuing theory arrival rate or 
 
