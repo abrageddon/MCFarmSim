@@ -10,25 +10,27 @@ S3 = None
 currentStep = 0
 
 
+# FRESH COPY BASED SETTINGS
 # Best guess of traffic/build_rate
 freshCopyMin = 10000
 
-## Redundant.... freshCopyMin IS fixed...
-# FRESH COPY BASED SETTINGS
-# freshCopyMin = fixedFreshCopyMin
-
 
 #STALE CLEANUP SETTINGS
-keepStalePct = 0.25
+keepStalePct = 0.20
 
 
+# RATE BASED SETTINGS
+FastestOnDemandRate = 0
+CheapestOnDemandRate = 0
+FastestSpotRate = 0
+CheapestSpotRate = 0
 
 
 # stepsInSim = 10080 ; print "Period: 1 Week"
 # stepsInSim = 43800 ; print "Period: 1 Month"
 # stepsInSim = 87600 ; print "Period: 2 Months"
-stepsInSim = 131400 ; print "Period: 3 Months"
-# stepsInSim = 131400*2 ; print "Period: 6 Months"
+# stepsInSim = 131400 ; print "Period: 3 Months"
+stepsInSim = 131400*2 ; print "Period: 6 Months"
 # stepsInSim = 131400 *4 ; print "Period: 1 Year" # takes a few MINUTES
 
 # stepsInSim = 30000 ; print "{0} Minutes".format(stepsInSim)
@@ -42,6 +44,7 @@ stepToStartTraffic = 10080*2 ; print "Time to Release: 2 Weeks (Normal Release)"
 # stepToStartTraffic = stepsInSim ; print "Time to Release: Never (No Traffic)"
 
 # stepsInSim = stepToStartTraffic
+
 
 
 
@@ -67,8 +70,9 @@ def main():
 
 
     ##### Select Build Target
-    setup = initFirefox ; print "Building: Firefox"
     # setup = initSmallApp ; print "Building: SmallApp"
+    setup = initFirefox ; print "Building: Firefox"
+    # setup = initLargeApp ; print "Building: LargeApp"
 
 
 
@@ -77,13 +81,13 @@ def main():
     # algorithm = algConstBuild ; print "Algorithm: Constant Build On-Demand"
     # algorithm = algConstBuildSpot ; print "Algorithm: Constant Build Spot"
 
-    algorithm = algSimpleLimitBuild ; print "Algorithm: Build When Below {0} Fresh Copies".format(freshCopyMin)
+    # algorithm = algSimpleLimitBuild ; print "Algorithm: Build When Below {0} Fresh Copies".format(freshCopyMin)
 
     # algorithm = algTierLinearBuild ; print "Algorithm: 3-Tier Linear\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}x{{2.00, 0.75, 0.25}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     # algorithm = algTierExpBuild ; print "Algorithm: 3-Tier Exponential\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}^{{1.00, 0.1, 0.01}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     
-    # algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
-    # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive (TODO)"
+    algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
+    # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive"
 
     # algorithm = algDailyBuild ; print "Algorithm: Daily"
 
@@ -91,12 +95,16 @@ def main():
 
     ##### Select Traffic Pattern
     # traffic = traConstantDemand ; print "Traffic: Constant"
+
     # traffic = traRandomDemand ; print "Traffic: Random"
     # traffic = traRandomSpikyDemand ; print "Traffic: Spiky"
-    # traffic = traFirefox ; print "Traffic: Firefox 4 Release Simulation"
-    # traffic = traVariedDemand; print "Traffic: Exponential"
-    traffic = traDailyDemand; print "Traffic: Daily"
 
+    # traffic = traFirefox ; print "Traffic: Firefox 4 Release Simulation"
+
+    # traffic = traVariedDemand; print "Traffic: Exponential"
+
+    # traffic = traDailyDemand; print "Traffic: Daily"
+    traffic = traDailyCyclic; print "Traffic: Daily Cycle, based on COS(x)"
 
 
 
@@ -175,9 +183,9 @@ def algTierExpBuild():
     if currentStep <= stepToStartTraffic:
         startAvailableOnCheapestSpot()
     else:
-        if S3.fresh < calcFreshCopyMin * 0.01:
+        if S3.fresh < calcFreshCopyMin * 0.1:
             startAvailableOnFastestOnDemand()
-        elif S3.fresh < calcFreshCopyMin * 0.1:
+        elif S3.fresh < calcFreshCopyMin :
             startAvailableOnFastestSpot()
         elif S3.fresh < calcFreshCopyMin * 2:
             startAvailableOnCheapestSpot()
@@ -193,7 +201,7 @@ def algFreshAdaptiveBuild():
     if currentStep <= stepToStartTraffic + 60:
         startAvailableOnCheapestSpot()
     else:
-        if S3.freshPct() < 0.90:
+        if S3.freshPct() < 0.80:
             shortageMultiplier = shortageMultiplier + rise
             calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
         elif S3.freshPct() < 0.60:
@@ -210,57 +218,8 @@ def algFreshAdaptiveBuild():
         algTierLinearBuild()
         
 
-def algDailyBuild():
-    global shortageMultiplier
-    global Slaves
-    global S3
-    global calcFreshCopyMin
-    global freshCopyMin
-    
-    clockTime = currentStep % 1440
-    
-    if clockTime >= 0 and clockTime < 300:  # need less freshCopy
-        calcFreshCopyMin = int(0.05 * freshCopyMin)
-    elif clockTime >=300 and clockTime < 450:
-        calcFreshCopyMin = int(0.3 * freshCopyMin)
-    elif clockTime >= 450 and clockTime < 690:
-        calcFreshCopyMin = freshCopyMin
-    elif clockTime >= 690 and clockTime < 720:
-        calcFreshCopyMin = int(0.15 * freshCopyMin)
-    elif clockTime >= 720 and clockTime < 930:
-        calcFreshCopyMin = freshCopyMin
-    elif clockTime >= 930 and clockTime < 1050:
-        calcFreshCopyMin = int(0.45 * freshCopyMin)
-    elif clockTime >= 1050 and clockTime < 1140:
-        calcFreshCopyMin = int(0.15 * freshCopyMin)
-    elif clockTime >= 1140 and clockTime < 1290:
-        calcFreshCopyMin = int(0.45 * freshCopyMin)
-    else:
-        calcFreshCopyMin = int(0.15 * freshCopyMin)
-
-    if currentStep <= stepToStartTraffic:
-        startAvailableOnCheapestSpot()
-    else:
-        if S3.freshPct() < 0.95:
-            shortageMultiplier = shortageMultiplier + rise
-            calcFreshCopyMin = int(shortageMultiplier * calcFreshCopyMin)
-        elif S3.freshPct() < 0.75:
-            shortageMultiplier = shortageMultiplier + (2*rise)
-            calcFreshCopyMin = int(shortageMultiplier * calcFreshCopyMin)
-        elif S3.freshPct() > 0.99:
-            shortageMultiplier = max(1, shortageMultiplier - fall)  # slow fall
-            calcFreshCopyMin = int(shortageMultiplier * calcFreshCopyMin)
-
-        # assign machines
-        algTierLinearBuild()
-
-
-
-
-
-
 def algFlowAdaptiveBuild():
-    waitForTraffic = 0  # Get at least this many samples
+    waitForTraffic = 120  # Get at least this many samples
 
     global Slaves
     global S3
@@ -273,8 +232,15 @@ def algFlowAdaptiveBuild():
         avgRange = 120 # over past X steps
         sumTotal = 0
         
-        divisor = min(currentStep - stepToStartTraffic, avgRange)
-        average = int(math.ceil(float(sumTotal)/float(divisor)))
+        
+        for i in range(avgRange):
+            # print currentStep - i - stepToStartTraffic
+            sumTotal += getTraffic(currentStep - i)
+        
+        avgDemand = sumTotal/avgRange
+        
+        #divisor = min(currentStep - stepToStartTraffic, avgRange)
+        #average = int(math.ceil(float(sumTotal)/float(divisor)))
         # print str(average) + ' : ' + str(S3.freshPct()) + ' : ' + str(S3.fresh) + '/' + str(S3.total)
         
         # plan to build 10%? over the expected demand
@@ -282,15 +248,23 @@ def algFlowAdaptiveBuild():
         #dynamic algorithm to start the optimal number of 
 
 
-        # assign machines
-        if S3.fresh < freshCopyMin * 0.001:
+        if avgDemand > FastestOnDemandRate:
             startAvailableOnFastestOnDemand()
-        elif S3.fresh < freshCopyMin * 0.01:
+        elif avgDemand > CheapestOnDemandRate:
             startAvailableOnCheapestOnDemand()
-        elif S3.fresh < freshCopyMin * 0.1:
+        elif avgDemand > FastestSpotRate:
             startAvailableOnFastestSpot()
-        elif S3.fresh < freshCopyMin:
+        else:
             startAvailableOnCheapestSpot()
+        # assign machines
+        #if S3.fresh < freshCopyMin * 0.001:
+        #    startAvailableOnFastestOnDemand()
+        #elif S3.fresh < freshCopyMin * 0.01:
+        #    startAvailableOnCheapestOnDemand()
+        #elif S3.fresh < freshCopyMin * 0.1:
+        #    startAvailableOnFastestSpot()
+        #elif S3.fresh < freshCopyMin:
+        #    startAvailableOnCheapestSpot()
 
         doRemoveStale()
 
@@ -327,6 +301,17 @@ def traRandomSpikyDemand(step):
         trafficHistory[step] = demand
     return trafficHistory[step]
 
+def traDailyCyclic(step):
+    global trafficHistory
+    if trafficHistory[step] == None:
+        dayMax = 40
+        demand = random.randint(0,int((-math.cos(step /(720/math.pi))+1) * dayMax ))
+        trafficHistory[step] = demand
+    return trafficHistory[step]
+
+
+
+
 
 count = 0
 
@@ -345,7 +330,7 @@ def traVariedDemand(step):
              count = random.randint(0,10)
     return trafficHistory[step]
 
-#TODO keep all traffic points; gen first?
+
 # The step starts from mid-night
 def traDailyDemand(step):
     global count
@@ -431,6 +416,13 @@ def initFirefox():
     global S3
     S3 = Storage.Storage(0,33) # copies per GB
     
+    global FastestOnDemandRate
+    FastestOnDemandRate = int(500/8)
+    global CheapestOnDemandRate
+    CheapestOnDemandRate = int(500/15)
+    global FastestSpotRate
+    FastestSpotRate = int(FastestOnDemandRate/2)
+    
 
 def initSmallApp():
     global instances
@@ -446,7 +438,14 @@ def initSmallApp():
     shortageMultiplier = 2.0
 
     global S3
-    S3 = Storage.Storage(0,33) # copies per GB
+    S3 = Storage.Storage(0,100) # copies per GB
+    
+    global FastestOnDemandRate
+    FastestOnDemandRate = int(500/3)
+    global CheapestOnDemandRate
+    CheapestOnDemandRate = int(500/6)
+    global FastestSpotRate
+    FastestSpotRate = int(FastestOnDemandRate/1.5)
 
 
 def initLargeApp():
@@ -463,7 +462,14 @@ def initLargeApp():
     shortageMultiplier = 16.0
 
     global S3
-    S3 = Storage.Storage(0,33) # copies per GB
+    S3 = Storage.Storage(0,8) # copies per GB
+    
+    global FastestOnDemandRate
+    FastestOnDemandRate = int(500/29)
+    global CheapestOnDemandRate
+    CheapestOnDemandRate = int(500/61)
+    global FastestSpotRate
+    FastestSpotRate = int(FastestOnDemandRate/2)
 
 
 
