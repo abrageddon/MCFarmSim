@@ -87,13 +87,7 @@ def main():
     # algorithm = algTierExpBuild ; print "Algorithm: 3-Tier Exponential\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}^{{1.00, 0.1, 0.01}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     
     algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
-<<<<<<< HEAD
     # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive"
-
-    # algorithm = algDailyBuild ; print "Algorithm: Daily"
-=======
-    # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive (TODO)"
->>>>>>> 20caf440e01a0330a5506d939f67dfb4a4743ef7
 
 
 
@@ -220,14 +214,8 @@ def algFreshAdaptiveBuild():
 
         # assign machines
         algTierLinearBuild()
-<<<<<<< HEAD
         
 
-=======
-
-        # this is redundant with the one in algTierLinearBuild
-        # doRemoveStale()
->>>>>>> 20caf440e01a0330a5506d939f67dfb4a4743ef7
 def algFlowAdaptiveBuild():
     waitForTraffic = 120  # Get at least this many samples
 
@@ -245,12 +233,8 @@ def algFlowAdaptiveBuild():
         sumTotal = 0
         
         for i in range(avgRange):
-<<<<<<< HEAD
             # print currentStep - i - stepToStartTraffic
             sumTotal += getTraffic(currentStep - i)
-=======
-            sumTotal += trafficHistory[currentStep - i - stepToStartTraffic - 1]
->>>>>>> 20caf440e01a0330a5506d939f67dfb4a4743ef7
         
         avgDemand = sumTotal/avgRange
             
