@@ -546,7 +546,9 @@ def step():
         if slave.isDone():
             if slave.takeCopy():
                 S3.addCopies(1)
+
     S3.step()
+    
 def totalSlaveCost():
     totalCost = 0
     for slave in Slaves:
