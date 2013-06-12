@@ -87,9 +87,13 @@ def main():
     # algorithm = algTierExpBuild ; print "Algorithm: 3-Tier Exponential\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}^{{1.00, 0.1, 0.01}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     
     algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
+<<<<<<< HEAD
     # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive"
 
     # algorithm = algDailyBuild ; print "Algorithm: Daily"
+=======
+    # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive (TODO)"
+>>>>>>> 20caf440e01a0330a5506d939f67dfb4a4743ef7
 
 
 
@@ -216,13 +220,21 @@ def algFreshAdaptiveBuild():
 
         # assign machines
         algTierLinearBuild()
+<<<<<<< HEAD
         
 
+=======
+
+        # this is redundant with the one in algTierLinearBuild
+        # doRemoveStale()
+>>>>>>> 20caf440e01a0330a5506d939f67dfb4a4743ef7
 def algFlowAdaptiveBuild():
     waitForTraffic = 120  # Get at least this many samples
 
+    global shortageMultiplier
     global Slaves
     global S3
+    global calcFreshCopyMin
 
     if currentStep <= stepToStartTraffic + waitForTraffic:
         startAvailableOnCheapestSpot()
@@ -232,13 +244,16 @@ def algFlowAdaptiveBuild():
         avgRange = 120 # over past X steps
         sumTotal = 0
         
-        
         for i in range(avgRange):
+<<<<<<< HEAD
             # print currentStep - i - stepToStartTraffic
             sumTotal += getTraffic(currentStep - i)
+=======
+            sumTotal += trafficHistory[currentStep - i - stepToStartTraffic - 1]
+>>>>>>> 20caf440e01a0330a5506d939f67dfb4a4743ef7
         
         avgDemand = sumTotal/avgRange
-        
+            
         #divisor = min(currentStep - stepToStartTraffic, avgRange)
         #average = int(math.ceil(float(sumTotal)/float(divisor)))
         # print str(average) + ' : ' + str(S3.freshPct()) + ' : ' + str(S3.fresh) + '/' + str(S3.total)
@@ -246,16 +261,33 @@ def algFlowAdaptiveBuild():
         # plan to build 10%? over the expected demand
         #build rate for each instance
         #dynamic algorithm to start the optimal number of 
+        if S3.freshPct() < 0.95:
+            shortageMultiplier = shortageMultiplier + rise
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+        elif S3.freshPct() < 0.75:
+            shortageMultiplier = shortageMultiplier + (2*rise)
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+        elif S3.freshPct() > 0.99:
+            shortageMultiplier = max(1, shortageMultiplier - fall)  # slow fall
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
 
-
-        if avgDemand > FastestOnDemandRate:
-            startAvailableOnFastestOnDemand()
-        elif avgDemand > CheapestOnDemandRate:
-            startAvailableOnCheapestOnDemand()
-        elif avgDemand > FastestSpotRate:
-            startAvailableOnFastestSpot()
-        else:
+        if S3.fresh < calcFreshCopyMin * 0.25:
+            if avgDemand > FastestOnDemandRate:
+                startAvailableOnFastestOnDemand()
+            elif avgDemand > CheapestOnDemandRate:
+                startAvailableOnCheapestOnDemand()
+            elif avgDemand > FastestSpotRate:
+                startAvailableOnFastestSpot()
+            else:
+                startAvailableOnCheapestSpot()
+        elif S3.fresh < calcFreshCopyMin * 0.75:
+            if avgDemand > FastestSpotRate:
+                startAvailableOnFastestSpot()
+            else:
+                startAvailableOnCheapestSpot()        
+        elif S3.fresh < calcFreshCopyMin:
             startAvailableOnCheapestSpot()
+        
         # assign machines
         #if S3.fresh < freshCopyMin * 0.001:
         #    startAvailableOnFastestOnDemand()
@@ -417,11 +449,11 @@ def initFirefox():
     S3 = Storage.Storage(0,33) # copies per GB
     
     global FastestOnDemandRate
-    FastestOnDemandRate = int(500/8)
+    FastestOnDemandRate = 500/8
     global CheapestOnDemandRate
-    CheapestOnDemandRate = int(500/15)
+    CheapestOnDemandRate = 500/15
     global FastestSpotRate
-    FastestSpotRate = int(FastestOnDemandRate/2)
+    FastestSpotRate = FastestOnDemandRate/2
     
 
 def initSmallApp():
@@ -441,11 +473,11 @@ def initSmallApp():
     S3 = Storage.Storage(0,100) # copies per GB
     
     global FastestOnDemandRate
-    FastestOnDemandRate = int(500/3)
+    FastestOnDemandRate = 500/3
     global CheapestOnDemandRate
-    CheapestOnDemandRate = int(500/6)
+    CheapestOnDemandRate = 500/6
     global FastestSpotRate
-    FastestSpotRate = int(FastestOnDemandRate/1.5)
+    FastestSpotRate = FastestOnDemandRate/1.5
 
 
 def initLargeApp():
@@ -465,11 +497,11 @@ def initLargeApp():
     S3 = Storage.Storage(0,8) # copies per GB
     
     global FastestOnDemandRate
-    FastestOnDemandRate = int(500/29)
+    FastestOnDemandRate = 500/29
     global CheapestOnDemandRate
-    CheapestOnDemandRate = int(500/61)
+    CheapestOnDemandRate = 500/61
     global FastestSpotRate
-    FastestSpotRate = int(FastestOnDemandRate/2)
+    FastestSpotRate = FastestOnDemandRate/2
 
 
 
