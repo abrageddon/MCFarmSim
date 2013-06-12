@@ -3,18 +3,19 @@ import SlaveMachine, Storage, Instance
 import math, random, sys
 
 ##### INIT VARS
-numberOfSlaves = 20
+numberOfSlaves = 500
 Slaves = []
 Instances = []
 S3 = None
 currentStep = 0
 
 
-# This should be based on the size of APP
-fixedFreshCopyMin = 1000
+# Best guess of traffic/build_rate
+freshCopyMin = 10000
 
+## Redundant.... freshCopyMin IS fixed...
 # FRESH COPY BASED SETTINGS
-freshCopyMin = fixedFreshCopyMin
+# freshCopyMin = fixedFreshCopyMin
 
 
 #STALE CLEANUP SETTINGS
@@ -24,9 +25,10 @@ keepStalePct = 0.25
 
 
 # stepsInSim = 10080 ; print "Period: 1 Week"
-stepsInSim = 43800 ; print "Period: 1 Month"
+# stepsInSim = 43800 ; print "Period: 1 Month"
 # stepsInSim = 87600 ; print "Period: 2 Months"
-# stepsInSim = 131400 ; print "Period: 3 Months"
+stepsInSim = 131400 ; print "Period: 3 Months"
+# stepsInSim = 131400*2 ; print "Period: 6 Months"
 # stepsInSim = 131400 *4 ; print "Period: 1 Year" # takes a few MINUTES
 
 # stepsInSim = 30000 ; print "{0} Minutes".format(stepsInSim)
@@ -34,7 +36,8 @@ stepsInSim = 43800 ; print "Period: 1 Month"
 
 # 10,080 minutes in a week
 # stepToStartTraffic = 1440 ; print "Time to Release: 1 Day (Emergency Release)"
-stepToStartTraffic = 10080 ; print "Time to Release: 1 Week (Quick Release)"
+# stepToStartTraffic = 10080 ; print "Time to Release: 1 Week (Quick Release)"
+stepToStartTraffic = 10080*2 ; print "Time to Release: 2 Weeks (Normal Release)"
 # stepToStartTraffic = 43800 ; print "Time to Release: 1 Month (Slow Release)"
 # stepToStartTraffic = stepsInSim ; print "Time to Release: Never (No Traffic)"
 
@@ -54,7 +57,7 @@ calcFreshCopyMin = freshCopyMin
 #ADAPTIVE BUILD ADJUSTMENT PARAMETERS
 shortageMultiplier = 1.0
 rise = (float(freshCopyMin)/float(numberOfSlaves))/float(freshCopyMin)/30
-fall = ((float(freshCopyMin)/float(numberOfSlaves))/(float(freshCopyMin))/30) / ((float(freshCopyMin)/float(numberOfSlaves)) * 30)
+fall = ((float(freshCopyMin)/float(numberOfSlaves))/(float(freshCopyMin))/30) / ((float(freshCopyMin)/float(numberOfSlaves)) * 300)
 
 def main():
     global traffic
@@ -73,14 +76,16 @@ def main():
     ##### Select Algorithm
     # algorithm = algConstBuild ; print "Algorithm: Constant Build On-Demand"
     # algorithm = algConstBuildSpot ; print "Algorithm: Constant Build Spot"
-    # algorithm = algSimpleLimitBuild ; print "Algorithm: Build When Below {0} Fresh Copies".format(freshCopyMin)
 
-    # algorithm = algTierLinearBuild ; print "Algorithm: 3-Tier Linear\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}x{{1.00, 0.75, 0.25}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
+    algorithm = algSimpleLimitBuild ; print "Algorithm: Build When Below {0} Fresh Copies".format(freshCopyMin)
+
+    # algorithm = algTierLinearBuild ; print "Algorithm: 3-Tier Linear\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}x{{2.00, 0.75, 0.25}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     # algorithm = algTierExpBuild ; print "Algorithm: 3-Tier Exponential\n\tPre: Constant Build With Cheapest Spot Instance\n\tPost: {0}^{{1.00, 0.1, 0.01}} Defines Fresh Copy Levels Based On Instance Cost".format(freshCopyMin)
     
     # algorithm = algFreshAdaptiveBuild ; print "Algorithm: Fresh Percent Adaptive Linear 3-Tier; Initial Estimate {0} Fresh Copies".format(freshCopyMin)
     # algorithm = algFlowAdaptiveBuild ; print "Algorithm: Flow Rate Adaptive (TODO)"
-    algorithm = algDailyBuild ; print "Algorithm: Daily"
+
+    # algorithm = algDailyBuild ; print "Algorithm: Daily"
 
 
 
@@ -103,10 +108,10 @@ def main():
 
     #WHILE TRAFFIC IS RUNNING
     for i in range(stepsInSim):
-        #RUN ALGORITHM
-        algorithm()
         #RUN TRAFFIC
         S3.takeCopies(getTraffic(currentStep))
+        #RUN ALGORITHM
+        algorithm()
         #NEXT MINUTE
         step()
 
@@ -138,16 +143,18 @@ def main():
 
 def algConstBuild():
     startAvailableOnCheapestOnDemand()
+    doRemoveStale()
 
 def algConstBuildSpot():
     startAvailableOnCheapestSpot()
+    doRemoveStale()
 
 def algSimpleLimitBuild():
     if currentStep <= stepToStartTraffic:
         startAvailableOnCheapestSpot()
     else:
         if S3.fresh < calcFreshCopyMin:
-            startAvailableOnCheapestOnDemand()
+            startAvailableOnFastestSpot()
         doRemoveStale()
 
 def algTierLinearBuild():
@@ -158,7 +165,9 @@ def algTierLinearBuild():
             startAvailableOnFastestOnDemand()
         elif S3.fresh < calcFreshCopyMin * 0.75:
             startAvailableOnFastestSpot()
-        elif S3.fresh < calcFreshCopyMin:
+        # elif S3.fresh < calcFreshCopyMin :
+        #     startAvailableOnCheapestOnDemand()
+        elif S3.fresh < calcFreshCopyMin * 2:
             startAvailableOnCheapestSpot()
         doRemoveStale()
 
@@ -170,7 +179,7 @@ def algTierExpBuild():
             startAvailableOnFastestOnDemand()
         elif S3.fresh < calcFreshCopyMin * 0.1:
             startAvailableOnFastestSpot()
-        elif S3.fresh < calcFreshCopyMin:
+        elif S3.fresh < calcFreshCopyMin * 2:
             startAvailableOnCheapestSpot()
         doRemoveStale()
 
@@ -181,14 +190,17 @@ def algFreshAdaptiveBuild():
     global calcFreshCopyMin
 
     
-    if currentStep <= stepToStartTraffic:
+    if currentStep <= stepToStartTraffic + 60:
         startAvailableOnCheapestSpot()
     else:
-        if S3.freshPct() < 0.95:
+        if S3.freshPct() < 0.90:
             shortageMultiplier = shortageMultiplier + rise
             calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
-        elif S3.freshPct() < 0.75:
-            shortageMultiplier = shortageMultiplier + (2*rise)
+        elif S3.freshPct() < 0.60:
+            shortageMultiplier = shortageMultiplier + (10*rise)
+            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+        elif S3.freshPct() < 0.30:
+            shortageMultiplier = shortageMultiplier + (100*rise)
             calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
         elif S3.freshPct() > 0.99:
             shortageMultiplier = max(1, shortageMultiplier - fall)  # slow fall
@@ -196,9 +208,6 @@ def algFreshAdaptiveBuild():
 
         # assign machines
         algTierLinearBuild()
-
-        # this is redundant with the one in algTierLinearBuild
-        # doRemoveStale()
         
 
 def algDailyBuild():
@@ -211,42 +220,39 @@ def algDailyBuild():
     clockTime = currentStep % 1440
     
     if clockTime >= 0 and clockTime < 300:  # need less freshCopy
-        freshCopyMin = int(0.05 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.05 * freshCopyMin)
     elif clockTime >=300 and clockTime < 450:
-        freshCopyMin = int(0.3 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.3 * freshCopyMin)
     elif clockTime >= 450 and clockTime < 690:
-        freshCopyMin = fixedFreshCopyMin
+        calcFreshCopyMin = freshCopyMin
     elif clockTime >= 690 and clockTime < 720:
-        freshCopyMin = int(0.15 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.15 * freshCopyMin)
     elif clockTime >= 720 and clockTime < 930:
-        freshCopyMin = fixedFreshCopyMin
+        calcFreshCopyMin = freshCopyMin
     elif clockTime >= 930 and clockTime < 1050:
-        freshCopyMin = int(0.45 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.45 * freshCopyMin)
     elif clockTime >= 1050 and clockTime < 1140:
-        freshCopyMin = int(0.15 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.15 * freshCopyMin)
     elif clockTime >= 1140 and clockTime < 1290:
-        freshCopyMin = int(0.45 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.45 * freshCopyMin)
     else:
-        freshCopyMin = int(0.15 * fixedFreshCopyMin)
+        calcFreshCopyMin = int(0.15 * freshCopyMin)
 
     if currentStep <= stepToStartTraffic:
         startAvailableOnCheapestSpot()
     else:
         if S3.freshPct() < 0.95:
             shortageMultiplier = shortageMultiplier + rise
-            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+            calcFreshCopyMin = int(shortageMultiplier * calcFreshCopyMin)
         elif S3.freshPct() < 0.75:
             shortageMultiplier = shortageMultiplier + (2*rise)
-            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+            calcFreshCopyMin = int(shortageMultiplier * calcFreshCopyMin)
         elif S3.freshPct() > 0.99:
             shortageMultiplier = max(1, shortageMultiplier - fall)  # slow fall
-            calcFreshCopyMin = int(shortageMultiplier * freshCopyMin)
+            calcFreshCopyMin = int(shortageMultiplier * calcFreshCopyMin)
 
         # assign machines
         algTierLinearBuild()
-
-        # this is redundant with the one in algTierLinearBuild
-        # doRemoveStale()
 
 
 
@@ -322,7 +328,6 @@ def traRandomSpikyDemand(step):
     return trafficHistory[step]
 
 
-#TODO keep all traffic points; gen first?
 count = 0
 
 def traVariedDemand(step):
@@ -393,8 +398,8 @@ def traDailyDemand(step):
 #TODO Major release; start with really high demand and level out to constant; model actual Firefox release
 def traFirefox(step):
     dpm = 5503 # average
-    divisor = max(1, int(float(step)/float(2880)))
-    return int(dpm/divisor)
+    divisor = min(dpm, max(1.0, float(step)/float(200)))
+    return int(float(dpm)/divisor)
 
 
 
@@ -409,7 +414,6 @@ def traFirefox(step):
 
 ##### Setups
 
-#TODO load available instances to a list for easy management
 def initFirefox():
     global instances
     instances = []
@@ -418,21 +422,16 @@ def initFirefox():
     instances.append(Instance.Instance('C1.Medium On-Demand', 63, 15, 0.00241, False))
     instances.append(Instance.Instance('C1.XLarge On-Demand', 25,  7, 0.00967, False))
     #TODO adjust number of slaves
-    setSlaves(500)
+    # setSlaves(500)
 
-    #Start with a high estimate; adaptive only
-    # global calcFreshCopyMin
-    # calcFreshCopyMin = freshCopyMin * 2
+
+    global shortageMultiplier
+    shortageMultiplier = 4.0
 
     global S3
     S3 = Storage.Storage(0,33) # copies per GB
     
-    
-    
 
-##### Setups
-
-#TODO load available instances to a list for easy management
 def initSmallApp():
     global instances
     instances = []
@@ -441,19 +440,15 @@ def initSmallApp():
     instances.append(Instance.Instance('C1.Medium On-Demand', 21, 5, 0.00241, False))
     instances.append(Instance.Instance('C1.XLarge On-Demand', 8,  2, 0.00967, False))
     #TODO adjust number of slaves
-    setSlaves(500)
+    # setSlaves(500)
 
-    #Start with a high estimate; adaptive only
-    # global calcFreshCopyMin
-    # calcFreshCopyMin = freshCopyMin * 2
+    global shortageMultiplier
+    shortageMultiplier = 2.0
 
     global S3
     S3 = Storage.Storage(0,33) # copies per GB
 
 
-##### Setups
-
-#TODO load available instances to a list for easy management
 def initLargeApp():
     global instances
     instances = []
@@ -462,14 +457,15 @@ def initLargeApp():
     instances.append(Instance.Instance('C1.Medium On-Demand', 252, 60, 0.00241, False))
     instances.append(Instance.Instance('C1.XLarge On-Demand', 100,  28, 0.00967, False))
     #TODO adjust number of slaves
-    setSlaves(500)
+    # setSlaves(500)
 
-    #Start with a high estimate; adaptive only
-    # global calcFreshCopyMin
-    # calcFreshCopyMin = freshCopyMin * 2
+    global shortageMultiplier
+    shortageMultiplier = 16.0
 
     global S3
     S3 = Storage.Storage(0,33) # copies per GB
+
+
 
 
 ##### Helper Functions
